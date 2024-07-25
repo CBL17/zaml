@@ -1,14 +1,12 @@
-ZAML
+ZAML - A Zig YAML Parser
 ---
-
-## Zig YAML Parser!
 
 ### Building
 
 `zig build` duh
 
 ### TODO
- - Testing lmao
+ - More testing lmao
  - Comptime struct generation option
  - Helpful error messages
  - Actual parsing not just tokenizing :sob:
