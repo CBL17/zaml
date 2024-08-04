@@ -24,6 +24,7 @@ pub const YAMLData = union(YAMLDataTag) {
         float: f64,
         string: []const u8,
         boolean: bool,
+        null: u0,
     },
     sequence: std.ArrayList(YAMLData),
     mapping: std.StringHashMap(YAMLData),
