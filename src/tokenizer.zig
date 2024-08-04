@@ -1,11 +1,23 @@
 const std = @import("std");
 
-const Token = struct {
+pub const Token = struct {
     str: []const u8,
     tag: Tag,
     start: u32,
 
-    const Tag = enum {
+    const keywords = std.StaticStringMap(Tag).initComptime(.{
+        .{ "TRUE", .boolean_true },
+        .{ "True", .boolean_true },
+        .{ "true", .boolean_true },
+        .{ "FALSE", .boolean_false },
+        .{ "False", .boolean_false },
+        .{ "false", .boolean_false },
+        .{ "NULL", .null },
+        .{ "Null", .null },
+        .{ "null", .null },
+    });
+
+    pub const Tag = enum {
         sequence_start_hyphen,
         sequence_start_bracket,
         sequence_end_bracket,
@@ -19,6 +31,9 @@ const Token = struct {
         int_literal,
         float_literal,
         string_literal,
+        boolean_true,
+        boolean_false,
+        null,
         newline,
         invalid,
         eof,
@@ -34,12 +49,11 @@ pub const Tokenizer = struct {
         sequence,
         mapping,
         string_literal,
-        int_literal,
-        float_literal,
+        number_literal,
         whitespace,
     };
 
-    const SmallToken = struct {
+    pub const SmallToken = struct {
         tag: Token.Tag,
         start: u32,
     };
@@ -65,7 +79,7 @@ pub const Tokenizer = struct {
                         result.tag = .string_literal;
                     },
                     '0'...'9' => {
-                        state = .int_literal;
+                        state = .number_literal;
                         result.tag = .int_literal;
                     },
                     ':' => {
@@ -78,9 +92,7 @@ pub const Tokenizer = struct {
                         return result;
                     },
                     '#' => {
-                        result.tag = .comment_begin;
-                        self.index += 1;
-                        return result;
+                        while (self.index < self.buffer.len and self.buffer[self.index] != '\n') : (self.index += 1) {}
                     },
                     '\n' => {
                         result.tag = .newline;
@@ -91,6 +103,10 @@ pub const Tokenizer = struct {
                     else => std.debug.print("{d}\n", .{c}),
                 },
                 .string_literal => {
+                    if (Token.keywords.get(self.buffer[result.start..self.index])) |tag| {
+                        result.tag = tag;
+                        return result;
+                    }
                     switch (c) {
                         ':' => {
                             if ((self.index + 1 < self.buffer.len) and std.ascii.isWhitespace(self.buffer[self.index + 1])) {
@@ -101,17 +117,12 @@ pub const Tokenizer = struct {
                         else => continue,
                     }
                 },
-                .int_literal => switch (c) {
+                .number_literal => switch (c) {
                     '0'...'9' => continue,
                     '.' => {
-                        state = .float_literal;
                         result.tag = .float_literal;
                     },
                     else => return result,
-                },
-                .float_literal => switch (c) {
-                    '0'...'9' => continue,
-                    else => state = .string_literal,
                 },
                 .mapping => switch (c) {
                     ' ', '\r', '\t', '\n' => {
@@ -152,10 +163,52 @@ fn testTokenizer(comptime buf: [:0]const u8, comptime expected_tokens_tags: []co
     try std.testing.expectEqual(Token.Tag.eof, tok.next().tag);
 }
 
+test "scalar int" {
+    try testTokenizer("12345", &[_]Token.Tag{.int_literal});
+}
+
+test "scalar float" {
+    try testTokenizer("123.45", &[_]Token.Tag{.float_literal});
+}
+
+test "scalar bool" {
+    try testTokenizer("true", &[_]Token.Tag{.boolean_true});
+}
+
+test "multiple scalar ints" {
+    try testTokenizer(
+        \\1289764
+        \\1289731
+    , &[_]Token.Tag{ .int_literal, .newline, .int_literal });
+}
+
+test "multiple scalar floats" {
+    try testTokenizer(
+        \\12.89764
+        \\1289.731
+    , &[_]Token.Tag{ .float_literal, .newline, .float_literal });
+}
+
 test "multiple sequences" {
     try testTokenizer(
         \\- Mark McGwire
         \\- Sammy Sosa
         \\- Ken Griffey
     , &[_]Token.Tag{ .sequence_start_hyphen, .string_literal, .newline, .sequence_start_hyphen, .string_literal, .newline, .sequence_start_hyphen, .string_literal });
+}
+
+test "multiple mappings" {
+    try testTokenizer(
+        \\bruh: moment
+        \\ninja: 13
+        \\man: 0.01
+    , &[_]Token.Tag{ .string_literal, .mapping_separator, .string_literal, .newline, .string_literal, .mapping_separator, .int_literal, .newline, .string_literal, .mapping_separator, .float_literal });
+}
+
+test "sequence of mappings" {
+    try testTokenizer(
+        \\- test: 
+        \\  again: 1
+        \\- bruh
+    , &[_]Token.Tag{ .sequence_start_hyphen, .string_literal, .mapping_separator, .newline, .whitespace, .whitespace, .string_literal, .mapping_separator, .int_literal, .newline, .sequence_start_hyphen, .string_literal });
 }
