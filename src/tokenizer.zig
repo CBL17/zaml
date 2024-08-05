@@ -110,6 +110,8 @@ pub const Tokenizer = struct {
                     switch (c) {
                         ':' => {
                             if ((self.index + 1 < self.buffer.len) and std.ascii.isWhitespace(self.buffer[self.index + 1])) {
+                                self.index += 2;
+                                result.tag = .mapping_key;
                                 return result;
                             }
                         },
@@ -171,8 +173,12 @@ test "scalar float" {
     try testTokenizer("123.45", &[_]Token.Tag{.float_literal});
 }
 
-test "scalar bool" {
+test "scalar bool: true" {
     try testTokenizer("true", &[_]Token.Tag{.boolean_true});
+}
+
+test "scalar null" {
+    try testTokenizer("null", &[_]Token.Tag{.null});
 }
 
 test "multiple scalar ints" {
@@ -202,7 +208,7 @@ test "multiple mappings" {
         \\bruh: moment
         \\ninja: 13
         \\man: 0.01
-    , &[_]Token.Tag{ .string_literal, .mapping_separator, .string_literal, .newline, .string_literal, .mapping_separator, .int_literal, .newline, .string_literal, .mapping_separator, .float_literal });
+    , &[_]Token.Tag{ .mapping_key, .string_literal, .newline, .mapping_key, .int_literal, .newline, .mapping_key, .float_literal });
 }
 
 test "sequence of mappings" {
@@ -210,5 +216,5 @@ test "sequence of mappings" {
         \\- test: 
         \\  again: 1
         \\- bruh
-    , &[_]Token.Tag{ .sequence_start_hyphen, .string_literal, .mapping_separator, .newline, .whitespace, .whitespace, .string_literal, .mapping_separator, .int_literal, .newline, .sequence_start_hyphen, .string_literal });
+    , &[_]Token.Tag{ .sequence_start_hyphen, .mapping_key, .newline, .whitespace, .whitespace, .mapping_key, .int_literal, .newline, .sequence_start_hyphen, .string_literal });
 }
