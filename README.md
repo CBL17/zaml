@@ -8,5 +8,4 @@ ZAML - A Zig YAML Parser
 ### TODO
  - More testing lmao
  - Comptime struct generation option
- - Helpful error messages
- - Actual parsing not just tokenizing :sob:
+ - Helpful error messages (not that hard tbh)
