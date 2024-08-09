@@ -12,7 +12,7 @@ pub const YAMLScalarTag = enum {
     null,
 };
 
-const YAMLDataTag = enum {
+pub const YAMLDataTag = enum {
     scalar,
     sequence,
     mapping,
@@ -27,5 +27,5 @@ pub const YAMLData = union(YAMLDataTag) {
         null: u0,
     },
     sequence: std.ArrayList(YAMLData),
-    mapping: std.StringHashMap(YAMLData),
+    mapping: std.ArrayHashMap([]const u8, YAMLData, std.array_hash_map.StringContext, false),
 };
