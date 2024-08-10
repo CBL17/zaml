@@ -65,13 +65,30 @@ fn testParse(buf: [:0]const u8, expected: YAMLData) !void {
         .tokens = tokens,
     };
     var actual = try parser.parse(tokens.items(.tag), tokens.items(.start));
+    _ = (&actual);
 
-    switch (actual) {
+    try expectEqualYAML(actual, expected);
+    defer denit_yaml(&actual);
+}
+
+pub fn denit_yaml(obj: *YAMLData) void {
+    switch (obj.*) {
         .mapping => {
-            try expectEqualMapping(actual.mapping, expected.mapping);
-            defer actual.mapping.deinit();
+            var it = obj.mapping.iterator();
+            var data = it.next();
+            while (data != null) : (data = it.next()) {
+                denit_yaml(data.?.value_ptr);
+            }
+            obj.mapping.deinit();
         },
-        .sequence => actual.sequence.deinit(),
+        .sequence => {
+            const length = obj.sequence.items.len;
+            var i: u32 = 0;
+            while (i < length) : (i += 1) {
+                denit_yaml(&(obj.sequence.items[i]));
+            }
+            obj.sequence.deinit();
+        },
         .scalar => {},
     }
 }
