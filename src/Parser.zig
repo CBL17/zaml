@@ -129,10 +129,42 @@ test "parse scalar string" {
     try testParse("br:--", .{ .scalar = .{ .string = "br:--" } });
 }
 
-test "parse mapping" {
+test "parse mapping: simple string" {
     var mapping = Mapping.init(std.testing.allocator);
     defer mapping.deinit();
     try mapping.put("simple", YAMLData{ .scalar = .{ .string = "mapping" } });
 
     try testParse("simple: mapping", .{ .mapping = mapping });
+}
+
+test "parse mapping: simple int" {
+    var mapping = Mapping.init(std.testing.allocator);
+    defer mapping.deinit();
+    try mapping.put("value", YAMLData{ .scalar = .{ .integer = 987124 } });
+
+    try testParse("value: 987124", .{ .mapping = mapping });
+}
+
+test "parse mapping: simple float" {
+    var mapping = Mapping.init(std.testing.allocator);
+    defer mapping.deinit();
+    try mapping.put("value", YAMLData{ .scalar = .{ .float = 123980.124 } });
+
+    try testParse("value: 123980.124000", .{ .mapping = mapping });
+}
+
+test "parse mapping: simple bool" {
+    var mapping = Mapping.init(std.testing.allocator);
+    defer mapping.deinit();
+    try mapping.put("value", YAMLData{ .scalar = .{ .boolean = true } });
+
+    try testParse("value: True", .{ .mapping = mapping });
+}
+
+test "parse mapping: simple null" {
+    var mapping = Mapping.init(std.testing.allocator);
+    defer mapping.deinit();
+    try mapping.put("value", YAMLData{ .scalar = .{ .null = 0 } });
+
+    try testParse("value: null", .{ .mapping = mapping });
 }
