@@ -27,5 +27,5 @@ pub const YAMLData = union(YAMLDataTag) {
         null: u0,
     },
     sequence: std.ArrayList(YAMLData),
-    mapping: std.ArrayHashMap([]const u8, YAMLData, std.array_hash_map.StringContext, false),
+    mapping: std.StringArrayHashMapUnmanaged(YAMLData),
 };

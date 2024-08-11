@@ -3,7 +3,7 @@ const tokenizer = @import("tokenizer.zig");
 const yaml = @import("yaml.zig");
 
 const Sequence = std.ArrayList(yaml.YAMLData);
-const Mapping = std.ArrayHashMap([]const u8, yaml.YAMLData, std.array_hash_map.StringContext, false);
+const Mapping = std.StringArrayHashMapUnmanaged(YAMLData);
 const YAMLData = yaml.YAMLData;
 const Tokenizer = tokenizer.Tokenizer;
 const Tag = tokenizer.Token.Tag;
@@ -33,10 +33,10 @@ pub fn parse(self: *Self, tags: []const Tag, starts: []const u32) anyerror!YAMLD
 }
 
 fn parse_mapping(self: *Self, tags: []const Tag, starts: []const u32) !YAMLData {
-    var result = YAMLData{ .mapping = Mapping.init(self.allocator) }; // needs to be deinit by caller
+    var result = YAMLData{ .mapping = Mapping{} };
     self.index += 1;
 
-    try result.mapping.put(self.buf[0 .. starts[1] - 2], try self.parse(tags, starts));
+    try result.mapping.put(self.allocator, self.buf[0 .. starts[1] - 2], try self.parse(tags, starts));
     return result;
 }
 
@@ -68,24 +68,24 @@ fn testParse(buf: [:0]const u8, expected: YAMLData) !void {
     _ = (&actual);
 
     try expectEqualYAML(actual, expected);
-    defer denit_yaml(&actual);
+    defer denit_yaml(std.testing.allocator, &actual);
 }
 
-pub fn denit_yaml(obj: *YAMLData) void {
+pub fn denit_yaml(allocator: std.mem.Allocator, obj: *YAMLData) void {
     switch (obj.*) {
         .mapping => {
             var it = obj.mapping.iterator();
             var data = it.next();
             while (data != null) : (data = it.next()) {
-                denit_yaml(data.?.value_ptr);
+                denit_yaml(allocator, data.?.value_ptr);
             }
-            obj.mapping.deinit();
+            obj.mapping.deinit(allocator);
         },
         .sequence => {
             const length = obj.sequence.items.len;
             var i: u32 = 0;
             while (i < length) : (i += 1) {
-                denit_yaml(&(obj.sequence.items[i]));
+                denit_yaml(allocator, &(obj.sequence.items[i]));
             }
             obj.sequence.deinit();
         },
@@ -147,41 +147,36 @@ test "parse scalar string" {
 }
 
 test "parse mapping: simple string" {
-    var mapping = Mapping.init(std.testing.allocator);
-    defer mapping.deinit();
-    try mapping.put("simple", YAMLData{ .scalar = .{ .string = "mapping" } });
+    var mapping = try Mapping.init(std.testing.allocator, &.{"simple"}, &.{.{ .scalar = .{ .string = "mapping" } }});
+    defer mapping.deinit(std.testing.allocator);
 
     try testParse("simple: mapping", .{ .mapping = mapping });
 }
 
 test "parse mapping: simple int" {
-    var mapping = Mapping.init(std.testing.allocator);
-    defer mapping.deinit();
-    try mapping.put("value", YAMLData{ .scalar = .{ .integer = 987124 } });
+    var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .integer = 987124 } }});
+    defer mapping.deinit(std.testing.allocator);
 
     try testParse("value: 987124", .{ .mapping = mapping });
 }
 
 test "parse mapping: simple float" {
-    var mapping = Mapping.init(std.testing.allocator);
-    defer mapping.deinit();
-    try mapping.put("value", YAMLData{ .scalar = .{ .float = 123980.124 } });
+    var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .float = 123980.124 } }});
+    defer mapping.deinit(std.testing.allocator);
 
     try testParse("value: 123980.124000", .{ .mapping = mapping });
 }
 
 test "parse mapping: simple bool" {
-    var mapping = Mapping.init(std.testing.allocator);
-    defer mapping.deinit();
-    try mapping.put("value", YAMLData{ .scalar = .{ .boolean = true } });
+    var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .boolean = true } }});
+    defer mapping.deinit(std.testing.allocator);
 
     try testParse("value: True", .{ .mapping = mapping });
 }
 
 test "parse mapping: simple null" {
-    var mapping = Mapping.init(std.testing.allocator);
-    defer mapping.deinit();
-    try mapping.put("value", YAMLData{ .scalar = .{ .null = 0 } });
+    var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .null = 0 } }});
+    defer mapping.deinit(std.testing.allocator);
 
     try testParse("value: null", .{ .mapping = mapping });
 }
