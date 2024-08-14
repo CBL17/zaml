@@ -15,9 +15,9 @@ zig build
 ```
 
 ### TODO
- - [] More testing (always)
- - [] Fuzzing
- - [] Comptime struct generation option
- - [] JSON translation
- - [] YAML 1.2.2 compliance (never)
- - [] Helpful error messages including exact positions
+ - [ ] More testing (always)
+ - [ ] Fuzzing
+ - [ ] Comptime struct generation option
+ - [ ] JSON translation
+ - [ ] YAML 1.2.2 compliance (never)
+ - [ ] Helpful error messages including exact positions
