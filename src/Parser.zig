@@ -10,40 +10,59 @@ const Tag = tokenizer.Token.Tag;
 
 const Self = @This();
 
-tokens: std.MultiArrayList(tokenizer.Tokenizer.SmallToken),
+tokens: std.MultiArrayList(Tokenizer.SmallToken),
 allocator: std.mem.Allocator,
 buf: [:0]const u8,
+tags: []const Tag = undefined,
+starts: []const u32 = undefined,
 index: u32 = 0,
+curr_indent: u32 = 0,
 
-pub fn parse(self: *Self, tags: []const Tag, starts: []const u32) anyerror!YAMLData {
-    const next_index = if (self.index + 1 < self.tokens.len) starts[self.index + 1] else self.buf.len;
-    const tag_slice = self.buf[starts[self.index]..next_index];
+pub fn init(allocator: std.mem.Allocator, buf: [:0]const u8, tokens: std.MultiArrayList(Tokenizer.SmallToken)) Self {
+    return Self{
+        .tokens = tokens,
+        .buf = buf,
+        .allocator = allocator,
+        .tags = tokens.slice().items(.tag),
+        .starts = tokens.slice().items(.start),
+    };
+}
 
-    switch (tags[self.index]) {
-        .mapping_key => return try self.parse_mapping(tags, starts),
-        .sequence_start_hyphen => return try self.parse_sequence(tags, starts),
+pub fn parse(self: *Self) anyerror!YAMLData {
+    const next_index = if (self.index + 1 < self.tokens.len) self.starts[self.index + 1] else self.buf.len;
+    const tag_slice = self.buf[self.starts[self.index]..next_index];
+
+    switch (self.tags[self.index]) {
+        .mapping_key => return try self.parse_mapping(),
+        .sequence_start_hyphen => return try self.parse_sequence(),
         .int_literal => return YAMLData{ .scalar = .{ .integer = try std.fmt.parseInt(i64, tag_slice, 10) } },
         .float_literal => return YAMLData{ .scalar = .{ .float = try std.fmt.parseFloat(f64, tag_slice) } },
         .string_literal => return YAMLData{ .scalar = .{ .string = tag_slice } },
         .boolean_true => return YAMLData{ .scalar = .{ .boolean = true } },
         .boolean_false => return YAMLData{ .scalar = .{ .boolean = false } },
         .null => return YAMLData{ .scalar = .{ .null = 0 } },
-        else => return yaml.YAMLError.UnsupportedSyntax,
+        else => |tag| {
+            std.debug.print("\n\n\n{s}\n\n", .{@tagName(tag)});
+            return yaml.YAMLError.UnsupportedSyntax;
+        },
     }
 }
 
-fn parse_mapping(self: *Self, tags: []const Tag, starts: []const u32) !YAMLData {
+fn parse_mapping(self: *Self) !YAMLData {
     var result = YAMLData{ .mapping = Mapping{} };
-    self.index += 1;
 
-    try result.mapping.put(self.allocator, self.buf[0 .. starts[1] - 2], try self.parse(tags, starts));
+    // if (tags[1] == Tag.newline) {
+    //     while (tags[self.curr_indent + 2] == Tag.whitespace) : (self.curr_indent += 1) {}
+    //     self.index += self.curr_indent;
+    // }
+
+    self.index += 1;
+    try result.mapping.put(self.allocator, self.buf[self.starts[0] .. self.starts[1] - 2], try self.parse());
     return result;
 }
 
-fn parse_sequence(self: *Self, tags: []const Tag, starts: []const u32) !YAMLData {
+fn parse_sequence(self: *Self) !YAMLData {
     _ = self;
-    _ = tags;
-    _ = starts;
     return YAMLData{ .scalar = .{ .null = 0 } };
 }
 
@@ -59,12 +78,8 @@ fn testParse(buf: [:0]const u8, expected: YAMLData) !void {
     }
     defer tokens.deinit(std.testing.allocator);
 
-    var parser = Self{
-        .buf = buf,
-        .allocator = std.testing.allocator,
-        .tokens = tokens,
-    };
-    var actual = try parser.parse(tokens.items(.tag), tokens.items(.start));
+    var parser = Self.init(std.testing.allocator, buf, tokens);
+    var actual = try parser.parse();
     _ = (&actual);
 
     try expectEqualYAML(actual, expected);
@@ -180,3 +195,44 @@ test "parse mapping: simple null" {
 
     try testParse("value: null", .{ .mapping = mapping });
 }
+
+test "nested mappings equal" {
+    var data = YAMLData{
+        .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
+            .mapping = try Mapping.init(std.testing.allocator, &.{"bruh"}, &.{
+                .{ .scalar = .{ .string = "yee" } },
+            }),
+        }}),
+    };
+    defer denit_yaml(std.testing.allocator, &data);
+
+    var data_2 = YAMLData{
+        .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
+            .mapping = try Mapping.init(std.testing.allocator, &.{"bruh"}, &.{
+                .{ .scalar = .{ .string = "yee" } },
+            }),
+        }}),
+    };
+    defer denit_yaml(std.testing.allocator, &data_2);
+
+    _ = &data;
+    _ = &data_2;
+
+    try expectEqualYAML(data, data_2);
+}
+
+// test "parse mapping: mappings of mappings" {
+//     var data = YAMLData{
+//         .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
+//             .mapping = try Mapping.init(std.testing.allocator, &.{"bruh"}, &.{
+//                 .{ .scalar = .{ .string = "yee" } },
+//             }),
+//         }}),
+//     };
+//     defer denit_yaml(std.testing.allocator, &data);
+//
+//     try testParse(
+//         \\value:\n
+//         \\  bruh: yee
+//     , .{ .mapping = data.mapping });
+// }
