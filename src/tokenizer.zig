@@ -110,6 +110,7 @@ pub const Tokenizer = struct {
                     switch (c) {
                         ':' => {
                             if ((self.index + 1 < self.buffer.len) and std.ascii.isWhitespace(self.buffer[self.index + 1])) {
+                                if (self.buffer[self.index + 1] == '\n') self.index -= 1;
                                 self.index += 2;
                                 result.tag = .mapping_key;
                                 return result;
