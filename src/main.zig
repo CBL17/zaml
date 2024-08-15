@@ -4,7 +4,9 @@ const Tokenizer = tokenizer.Tokenizer;
 const Parser = @import("Parser.zig");
 
 pub fn main() !void {
-    const file: [:0]const u8 = "simple: mapping";
+    const file: [:0]const u8 =
+        \\simple: mapping
+    ;
     var it = Tokenizer{
         .buffer = file,
         .index = 0,
@@ -12,7 +14,7 @@ pub fn main() !void {
 
     var token = it.next();
     while (token.tag != .eof) {
-        std.debug.print("{d}\n", .{token.start});
+        std.debug.print("{s}\n", .{@tagName(token.tag)});
         token = it.next();
     }
 }
@@ -20,4 +22,5 @@ pub fn main() !void {
 test {
     _ = tokenizer;
     _ = Parser;
+    _ = @import("yaml.zig");
 }

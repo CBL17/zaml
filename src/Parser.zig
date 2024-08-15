@@ -2,22 +2,28 @@ const std = @import("std");
 const tokenizer = @import("tokenizer.zig");
 const yaml = @import("yaml.zig");
 
-const Sequence = std.ArrayList(yaml.YAMLData);
-const Mapping = std.StringArrayHashMapUnmanaged(YAMLData);
+const Sequence = yaml.Sequence;
+const Mapping = yaml.Mapping;
 const YAMLData = yaml.YAMLData;
+
 const Tokenizer = tokenizer.Tokenizer;
 const Tag = tokenizer.Token.Tag;
+
+const Allocator = std.mem.Allocator;
+
+const expectEqualYAML = yaml.expectEqualYAML;
+const deinitYAML = yaml.deinitYAML;
 
 const Self = @This();
 
 tokens: std.MultiArrayList(Tokenizer.SmallToken),
-allocator: std.mem.Allocator,
+allocator: Allocator,
 buf: [:0]const u8,
 tags: []const Tag = undefined,
 starts: []const u32 = undefined,
 index: u32 = 0,
 
-pub fn init(allocator: std.mem.Allocator, buf: [:0]const u8, tokens: std.MultiArrayList(Tokenizer.SmallToken)) Self {
+pub fn init(allocator: Allocator, buf: [:0]const u8, tokens: std.MultiArrayList(Tokenizer.SmallToken)) Self {
     return Self{
         .tokens = tokens,
         .buf = buf,
@@ -97,66 +103,7 @@ fn testParse(buf: [:0]const u8, expected: YAMLData) !void {
     _ = (&actual);
 
     try expectEqualYAML(actual, expected);
-    defer denit_yaml(std.testing.allocator, &actual);
-}
-
-pub fn denit_yaml(allocator: std.mem.Allocator, obj: *YAMLData) void {
-    switch (obj.*) {
-        .mapping => {
-            var it = obj.mapping.iterator();
-            var data = it.next();
-            while (data != null) : (data = it.next()) {
-                denit_yaml(allocator, data.?.value_ptr);
-            }
-            obj.mapping.deinit(allocator);
-        },
-        .sequence => {
-            const length = obj.sequence.items.len;
-            var i: u32 = 0;
-            while (i < length) : (i += 1) {
-                denit_yaml(allocator, &(obj.sequence.items[i]));
-            }
-            obj.sequence.deinit();
-        },
-        .scalar => {},
-    }
-}
-
-fn expectEqualYAML(actual: YAMLData, expected: YAMLData) !void {
-    switch (expected) {
-        .mapping => try expectEqualMapping(actual.mapping, expected.mapping),
-        .sequence => try expectEqualSequence(actual.sequence, actual.sequence),
-        .scalar => switch (actual.scalar) {
-            .integer => try std.testing.expectEqual(actual.scalar.integer, expected.scalar.integer),
-            .float => try std.testing.expectEqual(actual.scalar.float, expected.scalar.float),
-            .boolean => try std.testing.expectEqual(actual.scalar.boolean, expected.scalar.boolean),
-            .null => try std.testing.expectEqual(actual.scalar.null, expected.scalar.null),
-            .string => try std.testing.expectEqualSlices(u8, actual.scalar.string, expected.scalar.string),
-        },
-    }
-}
-
-fn expectEqualMapping(actual: Mapping, expected: Mapping) error{TestExpectedEqual}!void {
-    var actual_it = actual.iterator();
-    var expected_it = expected.iterator();
-
-    var actual_data = actual_it.next();
-    var expected_data = expected_it.next();
-
-    while (actual_data != null and expected_data != null) : ({
-        actual_data = actual_it.next();
-        expected_data = expected_it.next();
-    }) {
-        try std.testing.expectEqualSlices(u8, expected_data.?.key_ptr.*, actual_data.?.key_ptr.*);
-        try expectEqualYAML(actual_data.?.value_ptr.*, expected_data.?.value_ptr.*);
-    }
-    if (actual_data == null and expected_data == null) return else return error.TestExpectedEqual;
-}
-
-fn expectEqualSequence(actual: Sequence, expected: Sequence) error{TestExpectedEqual}!void {
-    _ = actual;
-    _ = expected;
-    return error.TestExpectedEqual;
+    defer deinitYAML(std.testing.allocator, &actual);
 }
 
 test "parse scalar int" {
@@ -218,7 +165,7 @@ test "nested mappings equal" {
             }),
         }}),
     };
-    defer denit_yaml(std.testing.allocator, &data);
+    defer deinitYAML(std.testing.allocator, &data);
 
     var data_2 = YAMLData{
         .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
@@ -227,7 +174,7 @@ test "nested mappings equal" {
             }),
         }}),
     };
-    defer denit_yaml(std.testing.allocator, &data_2);
+    defer deinitYAML(std.testing.allocator, &data_2);
 
     _ = &data;
     _ = &data_2;
@@ -243,7 +190,7 @@ test "parse mapping: mappings of mappings" {
             }),
         }}),
     };
-    defer denit_yaml(std.testing.allocator, &data);
+    defer deinitYAML(std.testing.allocator, &data);
 
     try testParse(
         \\value:
