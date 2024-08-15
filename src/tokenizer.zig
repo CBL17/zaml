@@ -110,8 +110,7 @@ pub const Tokenizer = struct {
                     switch (c) {
                         ':' => {
                             if ((self.index + 1 < self.buffer.len) and std.ascii.isWhitespace(self.buffer[self.index + 1])) {
-                                if (self.buffer[self.index + 1] == '\n') self.index -= 1;
-                                self.index += 2;
+                                self.index += 1;
                                 result.tag = .mapping_key;
                                 return result;
                             }
@@ -209,13 +208,13 @@ test "multiple mappings" {
         \\bruh: moment
         \\ninja: 13
         \\man: 0.01
-    , &[_]Token.Tag{ .mapping_key, .string_literal, .newline, .mapping_key, .int_literal, .newline, .mapping_key, .float_literal });
+    , &[_]Token.Tag{ .mapping_key, .whitespace, .string_literal, .newline, .mapping_key, .whitespace, .int_literal, .newline, .mapping_key, .whitespace, .float_literal });
 }
 
 test "sequence of mappings" {
     try testTokenizer(
-        \\- test: 
+        \\- test:
         \\  again: 1
         \\- bruh
-    , &[_]Token.Tag{ .sequence_start_hyphen, .mapping_key, .newline, .whitespace, .whitespace, .mapping_key, .int_literal, .newline, .sequence_start_hyphen, .string_literal });
+    , &[_]Token.Tag{ .sequence_start_hyphen, .mapping_key, .newline, .whitespace, .whitespace, .mapping_key, .whitespace, .int_literal, .newline, .sequence_start_hyphen, .string_literal });
 }
