@@ -3,7 +3,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 pub const Mapping = std.StringArrayHashMapUnmanaged(YAMLData);
-pub const Sequence = std.ArrayList(YAMLData);
+pub const Sequence = std.ArrayListUnmanaged(YAMLData);
 
 pub const YAMLError = error{
     UnsupportedSyntax,
@@ -51,7 +51,7 @@ pub fn deinitYAML(allocator: Allocator, obj: *YAMLData) void {
             while (i < length) : (i += 1) {
                 deinitYAML(allocator, &(obj.sequence.items[i]));
             }
-            obj.sequence.deinit();
+            obj.sequence.deinit(allocator);
         },
         .scalar => {},
     }
@@ -89,9 +89,14 @@ fn expectEqualMapping(actual: Mapping, expected: Mapping) error{TestExpectedEqua
 }
 
 fn expectEqualSequence(actual: Sequence, expected: Sequence) error{TestExpectedEqual}!void {
-    _ = actual;
-    _ = expected;
-    return error.TestExpectedEqual;
+    const actual_items = actual.items;
+    const expected_items = expected.items;
+
+    if (actual_items.len != expected_items.len) return error.TestExpectedEqual;
+
+    for (actual_items, expected_items) |act, exp| {
+        try expectEqualYAML(act, exp);
+    }
 }
 
 test "nested mappings equal" {

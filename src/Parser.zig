@@ -69,6 +69,7 @@ pub fn parse(self: *Self) anyerror!YAMLData {
 
 fn parse_mapping(self: *Self) !YAMLData {
     var result = YAMLData{ .mapping = Mapping{} };
+    std.debug.assert(self.tags[self.index] == .mapping_key);
 
     self.index += 1;
     switch (self.tags[self.index]) {
@@ -82,8 +83,12 @@ fn parse_mapping(self: *Self) !YAMLData {
 }
 
 fn parse_sequence(self: *Self) !YAMLData {
-    _ = self;
-    return YAMLData{ .scalar = .{ .null = 0 } };
+    var result = YAMLData{ .sequence = Sequence{} };
+    std.debug.assert(self.tags[self.index] == .sequence_start_hyphen);
+
+    self.index += 1;
+    try result.sequence.append(self.allocator, try self.parse());
+    return result;
 }
 
 fn testParse(buf: [:0]const u8, expected: YAMLData) !void {
@@ -196,4 +201,14 @@ test "parse mapping: mappings of mappings" {
         \\value:
         \\  bruh: yee
     , .{ .mapping = data.mapping });
+}
+
+test "parse sequence: one line" {
+    var data = YAMLData{ .sequence = Sequence{} };
+    defer deinitYAML(std.testing.allocator, &data);
+    try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "baller" } });
+
+    try testParse(
+        \\- baller
+    , .{ .sequence = data.sequence });
 }
