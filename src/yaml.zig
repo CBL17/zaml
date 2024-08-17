@@ -46,10 +46,9 @@ pub fn deinitYAML(allocator: Allocator, obj: *YAMLData) void {
             obj.mapping.deinit(allocator);
         },
         .sequence => {
-            const length = obj.sequence.items.len;
-            var i: u32 = 0;
-            while (i < length) : (i += 1) {
-                deinitYAML(allocator, &(obj.sequence.items[i]));
+            const items = obj.sequence.items;
+            for (items) |*item| {
+                deinitYAML(allocator, item);
             }
             obj.sequence.deinit(allocator);
         },

@@ -88,6 +88,7 @@ fn parse_sequence(self: *Self) !YAMLData {
 
     self.index += 1;
     try result.sequence.append(self.allocator, try self.parse());
+    self.index += 1;
     return result;
 }
 
@@ -203,12 +204,27 @@ test "parse mapping: mappings of mappings" {
     , .{ .mapping = data.mapping });
 }
 
-test "parse sequence: one line" {
+test "parse sequence: scalar" {
     var data = YAMLData{ .sequence = Sequence{} };
     defer deinitYAML(std.testing.allocator, &data);
     try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "baller" } });
 
     try testParse(
         \\- baller
+    , .{ .sequence = data.sequence });
+}
+
+test "parse sequence: mapping" {
+    var data = YAMLData{ .sequence = Sequence{} };
+    defer deinitYAML(std.testing.allocator, &data);
+    const inner_data = YAMLData{ .mapping = try Mapping.init(
+        std.testing.allocator,
+        &.{"data"},
+        &.{.{ .scalar = .{ .string = "value" } }},
+    ) };
+    try data.sequence.append(std.testing.allocator, inner_data);
+
+    try testParse(
+        \\- data: value
     , .{ .sequence = data.sequence });
 }
