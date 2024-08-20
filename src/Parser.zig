@@ -33,6 +33,10 @@ pub fn init(allocator: Allocator, buf: [:0]const u8, tokens: std.MultiArrayList(
     };
 }
 
+pub fn reset(self: *Self) void {
+    self.index = 0;
+}
+
 pub fn parse(self: *Self) anyerror!YAMLData {
     const next_index = if (self.index + 1 < self.tokens.len) self.starts[self.index + 1] else self.buf.len;
     const tag_slice = self.buf[self.starts[self.index]..next_index];
@@ -84,11 +88,18 @@ fn parse_mapping(self: *Self) !YAMLData {
 
 fn parse_sequence(self: *Self) !YAMLData {
     var result = YAMLData{ .sequence = Sequence{} };
-    std.debug.assert(self.tags[self.index] == .sequence_start_hyphen);
 
-    self.index += 1;
-    try result.sequence.append(self.allocator, try self.parse());
-    self.index += 1;
+    while (true) {
+        std.debug.assert(self.tags[self.index] == .sequence_start_hyphen);
+
+        self.index += 1;
+        try result.sequence.append(self.allocator, try self.parse());
+        self.index += 1;
+
+        if (self.index >= self.tokens.len or self.tags[self.index] != .newline) break;
+
+        self.index += 1;
+    }
     return result;
 }
 
@@ -163,30 +174,16 @@ test "parse mapping: simple null" {
     try testParse("value: null", .{ .mapping = mapping });
 }
 
-test "nested mappings equal" {
-    var data = YAMLData{
-        .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
-            .mapping = try Mapping.init(std.testing.allocator, &.{"bruh"}, &.{
-                .{ .scalar = .{ .string = "yee" } },
-            }),
-        }}),
-    };
-    defer deinitYAML(std.testing.allocator, &data);
-
-    var data_2 = YAMLData{
-        .mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{
-            .mapping = try Mapping.init(std.testing.allocator, &.{"bruh"}, &.{
-                .{ .scalar = .{ .string = "yee" } },
-            }),
-        }}),
-    };
-    defer deinitYAML(std.testing.allocator, &data_2);
-
-    _ = &data;
-    _ = &data_2;
-
-    try expectEqualYAML(data, data_2);
-}
+// test "parse mapping: multiple mappings" {
+//     var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .null = 0 } }});
+//     defer mapping.deinit(std.testing.allocator);
+//     try mapping.put(std.testing.allocator, "gooofy", YAMLData{ .scalar = .{ .string = "ahh" } });
+//
+//     try testParse(
+//         \\value: null
+//         \\gooofy: ahh
+//     , .{ .mapping = mapping });
+// }
 
 test "parse mapping: mappings of mappings" {
     var data = YAMLData{
@@ -209,8 +206,20 @@ test "parse sequence: scalar" {
     defer deinitYAML(std.testing.allocator, &data);
     try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "baller" } });
 
+    try testParse("- baller", .{ .sequence = data.sequence });
+}
+
+test "parse sequence: multiple sequences" {
+    var data = YAMLData{ .sequence = Sequence{} };
+    defer deinitYAML(std.testing.allocator, &data);
+    try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "baller" } });
+    try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .integer = 9087253 } });
+    try data.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .boolean = false } });
+
     try testParse(
         \\- baller
+        \\- 9087253
+        \\- false
     , .{ .sequence = data.sequence });
 }
 

@@ -59,7 +59,7 @@ pub fn deinitYAML(allocator: Allocator, obj: *YAMLData) void {
 pub fn expectEqualYAML(actual: YAMLData, expected: YAMLData) !void {
     switch (expected) {
         .mapping => try expectEqualMapping(actual.mapping, expected.mapping),
-        .sequence => try expectEqualSequence(actual.sequence, actual.sequence),
+        .sequence => try expectEqualSequence(actual.sequence, expected.sequence),
         .scalar => switch (actual.scalar) {
             .integer => try std.testing.expectEqual(actual.scalar.integer, expected.scalar.integer),
             .float => try std.testing.expectEqual(actual.scalar.float, expected.scalar.float),
@@ -121,4 +121,21 @@ test "nested mappings equal" {
     _ = &data_2;
 
     try expectEqualYAML(data, data_2);
+}
+
+test "many item sequences equal" {
+    var data_1 = YAMLData{ .sequence = Sequence{} };
+    try data_1.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "firefly" } });
+    try data_1.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .integer = 10 } });
+    try data_1.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .null = 0 } });
+
+    var data_2 = YAMLData{ .sequence = Sequence{} };
+    try data_2.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .string = "firefly" } });
+    try data_2.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .integer = 10 } });
+    try data_2.sequence.append(std.testing.allocator, YAMLData{ .scalar = .{ .null = 0 } });
+
+    try expectEqualYAML(data_1, data_2);
+
+    deinitYAML(std.testing.allocator, &data_1);
+    deinitYAML(std.testing.allocator, &data_2);
 }
