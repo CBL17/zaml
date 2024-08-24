@@ -73,16 +73,21 @@ pub fn parse(self: *Self) anyerror!YAMLData {
 
 fn parse_mapping(self: *Self) !YAMLData {
     var result = YAMLData{ .mapping = Mapping{} };
-    std.debug.assert(self.tags[self.index] == .mapping_key);
 
-    self.index += 1;
-    switch (self.tags[self.index]) {
-        .whitespace, .newline => {},
-        else => return yaml.YAMLError.UnsupportedSyntax,
+    while (true) {
+        std.debug.assert(self.tags[self.index] == .mapping_key);
+        self.index += 1;
+        switch (self.tags[self.index]) {
+            .whitespace, .newline => {},
+            else => return yaml.YAMLError.UnsupportedSyntax,
+        }
+        self.index += 1;
+        try result.mapping.put(self.allocator, self.buf[self.starts[self.index - 2] .. self.starts[self.index - 1] - 1], try self.parse());
+        self.index += 1;
+
+        if (self.index >= self.tokens.len or self.tags[self.index] != .newline) break else self.index += 1;
     }
-    self.index += 1;
-    try result.mapping.put(self.allocator, self.buf[self.starts[self.index - 2] .. self.starts[self.index - 1] - 1], try self.parse());
-    self.index += 1;
+
     return result;
 }
 
@@ -174,16 +179,16 @@ test "parse mapping: simple null" {
     try testParse("value: null", .{ .mapping = mapping });
 }
 
-// test "parse mapping: multiple mappings" {
-//     var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .null = 0 } }});
-//     defer mapping.deinit(std.testing.allocator);
-//     try mapping.put(std.testing.allocator, "gooofy", YAMLData{ .scalar = .{ .string = "ahh" } });
-//
-//     try testParse(
-//         \\value: null
-//         \\gooofy: ahh
-//     , .{ .mapping = mapping });
-// }
+test "parse mapping: multiple mappings" {
+    var mapping = try Mapping.init(std.testing.allocator, &.{"value"}, &.{.{ .scalar = .{ .null = 0 } }});
+    defer mapping.deinit(std.testing.allocator);
+    try mapping.put(std.testing.allocator, "gooofy", YAMLData{ .scalar = .{ .string = "ahh" } });
+
+    try testParse(
+        \\value: null
+        \\gooofy: ahh
+    , .{ .mapping = mapping });
+}
 
 test "parse mapping: mappings of mappings" {
     var data = YAMLData{
